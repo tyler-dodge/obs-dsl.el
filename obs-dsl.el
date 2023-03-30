@@ -45,6 +45,13 @@
   :type '(string)
   :group 'obs-dsl)
 
+(defcustom obs-dsl-password nil 
+  "The password used to authenticate with OBS.
+If `obs-dsl-password' is a symbol, it will be called
+like a function."
+  :type '(string function)
+  :group 'obs-dsl)
+
 (defmacro obs-dsl (&rest config-lines)
   "Run and evaluate a configuration for DSL for OBS.
 
@@ -141,7 +148,14 @@ seconds
     (start-recording)
     (run-at-time 10 nil (lambda () (stop-recording)))))'
 "
-  (let ((scenes-var (make-symbol "scenes"))
+  (when (not lexical-binding)
+    (or (y-or-n-p "Lexical binding is not enabled is this buffer, and necessary for
+obs-dsl. Enable it?")
+        (user-error "obs-dsl must be used with lexical-binding enabled"))
+    (setq-local lexical-binding t)
+    )
+  (let* ((lexical-binding t)
+         (scenes-var (make-symbol "scenes"))
         (done-var (make-symbol "done"))
         (actions-var (make-symbol "actions"))
         (execution-id-var (make-symbol "execution-id"))
@@ -467,6 +481,22 @@ OBS is a `obs-dsl--websocket', and frame is a `websocket-frame'."
          (progn (deferred:callback-post it obs)
                 (setf (obs-dsl--websocket--connected-callback obs) nil))))
 
+      ((and 'initial (guard (and (eq 0 op)
+                                 (ht-get json-data "authentication"))))
+       (setf (obs-dsl--websocket--state obs) 'authenticating)
+       (-let [(&hash "authentication" ("challenge" challenge "salt" salt)) json-data]
+         (obs-dsl--websocket-send
+          obs
+          (ht ("op" 1)
+              ("d" (ht
+                    ("authentication" (obs-dsl--generate-auth-string
+                                       (cond
+                                        ((null obs-dsl-password)
+                                         (setq obs-dsl-password (read-passwd "Password: ")))
+                                        ((symbolp obs-dsl-password)
+                                         (funcall obs-dsl-password))
+                                        (t obs-dsl-password))))
+                    ("rpcVersion" 1)))))))
       ((and 'initial (guard (eq 0 op)))
        (setf (obs-dsl--websocket--state obs) 'identifying)
        (obs-dsl--websocket-send
@@ -570,6 +600,19 @@ Returns a passthrough output from `json-parse-string'."
         (json-object-type 'hash-table)
         (json-array-type 'list))
     (json-parse-string json :object-type 'hash-table :array-type 'list)))
+
+(defun obs-dsl--sha256 (object)
+  (secure-hash 'sha256 object nil nil t))
+
+(defun obs-dsl--generate-auth-string (password salt challenge)
+  "Encodes the PASSWORD SALT and CHALLENGE using the algorithm
+defined by:
+https://github.com/obsproject/obs-websocket/blob/master/docs/generated/protocol.md#creating-an-authentication-string"
+  (base64-encode-string
+   (obs-dsl--sha256
+    (concat
+     (base64-encode-string (obs-dsl--sha256 (concat password salt)) t)
+     challenge))))
 
 (provide 'obs-dsl)
 ;;; obs-dsl.el ends here

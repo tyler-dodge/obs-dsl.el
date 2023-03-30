@@ -18,6 +18,9 @@ make it so OBS changes to match the configuration defined within the dsl scope.
     (browser "website" "https://tdodge.consulting" :width 1920 :height 1080)))
 ```
 
+![example](screenshot/MainExample.jpeg)
+
+
 ## Installation
 
 Coming soon to MELPA
