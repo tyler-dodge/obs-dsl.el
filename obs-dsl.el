@@ -58,12 +58,14 @@ For Example:
 
 The DSL expects forms of the following format
 (scene PROGRAM)
-PROGRAM is a lisp form that's evaluated with a few additional functions in the scope.
+PROGRAM is a lisp form that's evaluated with a few additional functions in the
+scope.
 
 
 Inputs:
-Inputs represent sources like microphones and screen recorders.
-Inputs must be defined before the obs-dsl scope exits, so they cannot be created via async callbacks.
+Inputs represent sources like microphones and screen recorders.  Inputs must be
+defined before the obs-dsl scope exits, so they cannot be created via async
+callbacks.
 
 `(defun microphone (NAME DEVICE)
   \"Adds a input microphone named NAME from DEVICE to the current scene.\")'
@@ -72,16 +74,20 @@ Inputs must be defined before the obs-dsl scope exits, so they cannot be created
   \"Adds a browser window named NAME connected to URL to the current scene.\")'
 
 `(defun video-capture (NAME DEVICE)
-  \"Adds a Video Capture Device named NAME connected to DEVICE to the current scene.\")'
+  \"Adds a Video Capture Device named NAME connected to DEVICE to the current
+  scene.\")'
 
 `(defun text (NAME STRING :x :y)
   \"Adds text with the contents of STRING named NAME to the current scene.\")'
 
 
-Actions represent runtime actions that are available after the inputs are setup such as starting recording.
-Actions will always be delayed until after the inputs are fully configured, but they may be scheduled during the configuration stage.
-The functions that represent actions can leave the scope of obs-dsl. However, if there is another execution of obs-dsl afterwards,
-the previous instance of the function will no longer be valid, so they won't impact the new execution.
+Actions represent runtime actions that are available after the inputs are setup
+such as starting recording.  Actions will always be delayed until after the
+inputs are fully configured, but they may be scheduled during the configuration
+stage.  The functions that represent actions can leave the scope of
+obs-dsl. However, if there is another execution of obs-dsl afterwards, the
+previous instance of the function will no longer be valid, so they won't impact
+the new execution.
 
 Actions:
 
@@ -124,8 +130,9 @@ and two microphones A and B:
     (microphone \"B\")))'
 
 
-Defines a scene named Main that has a browser window 1920x1080 named website and a microphone named mic.
-Uses actions to start and stop the recording after 10 seconds
+Defines a scene named Main that has a browser window 1920x1080 named website and
+a microphone named mic.  Uses actions to start and stop the recording after 10
+seconds
 
 `(obs-dsl
   (scene \"Main\"
@@ -468,7 +475,7 @@ OBS is a `obs-dsl--websocket', and frame is a `websocket-frame'."
             ("d" (ht ("rpcVersion" 1))))))
 
       ((guard (eq 5 op)))
-      (_ (json "ERROR: Unexpected json from OBS: %S %S" obs frame)))))
+      (_ (message "ERROR: Unexpected json from OBS: %S %S" obs frame)))))
 
 (defun obs-dsl--open-websocket ()
   "Returns a deferred object that will complete once the websocket is connected."
@@ -481,7 +488,7 @@ OBS is a `obs-dsl--websocket', and frame is a `websocket-frame'."
                                                            :connected-callback promise
                                                            :socket socket)))
                     :on-close
-                    (lambda (socket)
+                    (lambda (&rest _)
                       (ht-remove obs-dsl--websockets session-id))
                     :on-message
                     (lambda (_ frame)
@@ -545,9 +552,8 @@ The result is sent via OBS's `obs-dsl--websocket' websocket"
 (defun obs-dsl--post-evaluation (scenes inputs)
   "Handles sending the generated SCENES and INPUTS from `obs-dsl' to OBS.
 Returns a deferred object that completes when the update has been sent to OBS."
-  (let* ((scene-name (car scenes)))
-    (obs-dsl--with-connection obs
-      (obs-dsl--websocket-update obs scenes inputs))))
+  (obs-dsl--with-connection obs
+    (obs-dsl--websocket-update obs scenes inputs)))
 
 (defun obs-dsl--encode-json (json)
   "Returns JSON encoded as a string with the configuration expected by obs-dsl."
